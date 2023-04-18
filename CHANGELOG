@@ -1,0 +1,17 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- Keep track of reactions on messages posted in the curation channel
+- Undo reactions that were added by authors to their own posts
+- Post messages that reach a certain reaction threshold to curation gems channel
+- In a database, keep track of which messages have been curated
+- Synchronizes post between the curation and curation gems channel
+    - If a post has been shared in the curation gems channel, and the original gets updated, the shared one will also be updated

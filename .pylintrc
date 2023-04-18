@@ -1,0 +1,9 @@
+[BASIC]
+
+# Good variable names which should always be accepted, separated by a comma.
+good-names=db
+
+[DESIGN]
+
+# Maximum number of return / yield for function / method body.
+max-returns=7

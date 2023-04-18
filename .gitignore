@@ -1,0 +1,14 @@
+# OS
+.DS_STORE
+
+# Cache
+__pycache__/
+.mypy_cache/
+.pytest_cache
+
+# Project
+.env
+*.sqlite3
+
+# IDE
+.vscode/
