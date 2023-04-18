@@ -12,7 +12,7 @@ def create_curated_message_embeds(
 
     avatar_url = message.author.avatar.url if message.author.avatar else ""
 
-    details_embed = discord.Embed(title="A post has been curated!")
+    details_embed = discord.Embed(title="A post has been curated!", description="")
     details_embed.set_author(name=message.author.name, icon_url=avatar_url)
     details_embed.add_field(
         name="",
@@ -28,7 +28,9 @@ def create_curated_message_embeds(
     for attachment in message.attachments:
         # We give each attachment the same URL, so that images are shown in a grid.
         attachment_embeds.append(
-            discord.Embed(url="https://discord.com").set_image(url=attachment.url)
+            discord.Embed(url="https://discord.com", description="").set_image(
+                url=attachment.url
+            )
         )
 
     return [details_embed, content_embed, *attachment_embeds]

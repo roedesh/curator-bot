@@ -16,6 +16,7 @@ from curator.strings import construct_permalink
 load_dotenv()
 
 # Collect configuration
+DEBUG = os.getenv("DEBUG", "False") == "True"
 TARGET_CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID", None) or 0)
 CURATIONS_CHANNEL_ID = int(os.getenv("CURATIONS_CHANNEL_ID", None) or 0)
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
@@ -24,7 +25,8 @@ REACTION_THRESHOLD = int(os.getenv("REACTION_THRESHOLD", None) or 5)
 DATABASE_PATH = os.getenv("DATABASE_PATH", "curator.sqlite3")
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG if DEBUG else logging.INFO)
+logging.getLogger("discord").setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Setup database and tables
@@ -47,6 +49,9 @@ async def on_ready():
 
     logger.info("%s is ready and online!", bot.user)
 
+    for guild in bot.guilds:
+        logger.info("Logged into guild '%s' (ID=%s)", guild.name, guild.id)
+
     target_channel = bot.get_channel(TARGET_CHANNEL_ID)
     if target_channel:
         channel_name = target_channel.name
@@ -61,6 +66,13 @@ async def on_ready():
 @bot.event
 async def on_raw_reaction_add(event: discord.RawReactionActionEvent):
     """Handles new reactions being added and curates the post if the threshold is met"""
+
+    logger.debug(
+        "Event 'on_raw_reaction_add' fired in %s guild. Channel is %s and target channel is %s.",
+        event.guild_id,
+        event.channel_id,
+        TARGET_CHANNEL_ID,
+    )
 
     if event.channel_id != TARGET_CHANNEL_ID or event.emoji.name != EMOJI_NAME:
         return
@@ -100,6 +112,12 @@ async def on_raw_reaction_add(event: discord.RawReactionActionEvent):
             CURATIONS_CHANNEL_ID,
         )
 
+    if not message.content:
+        return logger.error(
+            "Could not get content for message with ID: %s",
+            message.id,
+        )
+
     permalink = construct_permalink(message, TARGET_CHANNEL_ID)
     embeds = create_curated_message_embeds(message, permalink)
     curated_message = await curation_gems_channel.send(embeds=embeds)
@@ -116,6 +134,13 @@ async def on_raw_reaction_add(event: discord.RawReactionActionEvent):
 @bot.event
 async def on_message_edit(_: discord.Message, new_message: discord.Message):
     """Synchronizes posts between curation and curation gems"""
+
+    logger.debug(
+        "Event 'on_message_edit' fired in %s guild. Channel is %s and target channel is %s.",
+        new_message.guild.id,
+        new_message.channel.id,
+        TARGET_CHANNEL_ID,
+    )
 
     if new_message.channel.id != TARGET_CHANNEL_ID:
         return
