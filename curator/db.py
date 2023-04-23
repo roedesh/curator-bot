@@ -1,10 +1,10 @@
-"""Functions for setting up and interacting with the SQLite database"""
+"""Functions for setting up and interacting with the SQLite database."""
 
 import sqlite3
 
 
 def setup_db(database_path: str):
-    """Sets up the SQLite database and creates the tables if neccessary"""
+    """Sets up the SQLite database and creates the tables if neccessary."""
 
     db = sqlite3.connect(database_path)
 
@@ -24,7 +24,7 @@ def setup_db(database_path: str):
 
 
 def get_curation_from_db(conn: sqlite3.Connection, message_id: int):
-    """Returns a curation from the curations table"""
+    """Returns a curation from the curations table."""
 
     with conn:
         return (
@@ -44,7 +44,7 @@ def insert_curation_to_db(
     curated_message_id: int,
     curation_date_iso: str,
 ):
-    """Inserts a curation into the curations table"""
+    """Inserts a curation into the curations table."""
 
     with conn:
         conn.cursor().execute(

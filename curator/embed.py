@@ -1,4 +1,4 @@
-"""Helper functions for creating the curated messages"""
+"""Helper functions for creating the curated messages."""
 
 from typing import List, Optional
 
@@ -8,7 +8,7 @@ import discord
 def create_curated_message_embeds(
     message: discord.Message, permalink: Optional[str]
 ) -> List[discord.Embed]:
-    """Creates the Discord embeds that should be added to the message"""
+    """Creates the Discord embeds that should be added to the message."""
 
     avatar_url = message.author.avatar.url if message.author.avatar else ""
 

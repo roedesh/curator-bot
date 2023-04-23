@@ -1,4 +1,4 @@
-"""Entry point for the Discord bot"""
+"""Entry point for the Discord bot."""
 
 import asyncio
 import logging
@@ -10,19 +10,20 @@ from dotenv import load_dotenv
 
 from curator.db import get_curation_from_db, insert_curation_to_db, setup_db
 from curator.embed import create_curated_message_embeds
-from curator.strings import construct_permalink
+from curator.helpers import construct_permalink, map_to_int
 
 # Load environment variables
 load_dotenv()
 
 # Collect configuration
 DEBUG = os.getenv("DEBUG", "False") == "True"
-TARGET_CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID", None) or 0)
+TARGET_CHANNEL_IDS = map_to_int(os.getenv("TARGET_CHANNEL_IDS", []).split(","))
 CURATIONS_CHANNEL_ID = int(os.getenv("CURATIONS_CHANNEL_ID", None) or 0)
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
 EMOJI_NAME = os.getenv("EMOJI_NAME", "thumbsup")
 REACTION_THRESHOLD = int(os.getenv("REACTION_THRESHOLD", None) or 5)
 DATABASE_PATH = os.getenv("DATABASE_PATH", "curator.sqlite3")
+
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG if DEBUG else logging.INFO)
@@ -45,42 +46,43 @@ bot = discord.Bot(
 
 @bot.event
 async def on_ready():
-    """Logs when the bot is ready"""
+    """Logs when the bot is ready and sets Discord presence."""
 
     logger.info("%s is ready and online!", bot.user)
 
     for guild in bot.guilds:
         logger.info("Logged into guild '%s' (ID=%s)", guild.name, guild.id)
 
-    target_channel = bot.get_channel(TARGET_CHANNEL_ID)
-    if target_channel:
-        channel_name = target_channel.name
-        await bot.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.watching, name=f"#{channel_name}"
-            )
+    await bot.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.watching, name="curation channels"
         )
-        logger.info("Changed presence to '%s'", f"Watching #{channel_name}")
+    )
 
 
 @bot.event
 async def on_raw_reaction_add(event: discord.RawReactionActionEvent):
-    """Handles new reactions being added and curates the post if the threshold is met"""
+    """Handles new reactions being added and curates the post if the threshold is met."""
 
     logger.debug(
-        "Event 'on_raw_reaction_add' fired in %s guild. Channel is %s and target channel is %s.",
+        "Event 'on_raw_reaction_add' fired in %s guild on channel %s.",
         event.guild_id,
         event.channel_id,
-        TARGET_CHANNEL_ID,
     )
 
-    if event.channel_id != TARGET_CHANNEL_ID or event.emoji.name != EMOJI_NAME:
+    if event.channel_id not in TARGET_CHANNEL_IDS or event.emoji.name != EMOJI_NAME:
         return
 
-    curation_channel = bot.get_channel(TARGET_CHANNEL_ID)
-    if not curation_channel or not isinstance(curation_channel, discord.TextChannel):
+    curation_channel = bot.get_channel(event.channel_id)
+    if not curation_channel or not isinstance(
+        curation_channel,
+        (
+            discord.TextChannel,
+            discord.Thread,
+        ),
+    ):
         return logger.error(
-            "Did not find the curation text-channel with ID: %s", TARGET_CHANNEL_ID
+            "Could not find a text-channel or thread with ID: %s", event.channel_id
         )
 
     message = await curation_channel.fetch_message(event.message_id)
@@ -93,7 +95,7 @@ async def on_raw_reaction_add(event: discord.RawReactionActionEvent):
     reaction = get(message.reactions, emoji=event.emoji)
     if not reaction:
         return logger.error(
-            "Did not find a reaction with the emoji: %s", event.emoji.name
+            "Could not find a reaction with the emoji: %s", event.emoji.name
         )
 
     if reaction.count < REACTION_THRESHOLD:
@@ -108,7 +110,7 @@ async def on_raw_reaction_add(event: discord.RawReactionActionEvent):
         curation_gems_channel, discord.TextChannel
     ):
         return logger.error(
-            "Did not find the curation gems text-channel with ID: %s",
+            "Could not find the curations text-channel with ID: %s",
             CURATIONS_CHANNEL_ID,
         )
 
@@ -118,7 +120,7 @@ async def on_raw_reaction_add(event: discord.RawReactionActionEvent):
             message.id,
         )
 
-    permalink = construct_permalink(message, TARGET_CHANNEL_ID)
+    permalink = construct_permalink(message)
     embeds = create_curated_message_embeds(message, permalink)
     curated_message = await curation_gems_channel.send(embeds=embeds)
 
@@ -133,16 +135,15 @@ async def on_raw_reaction_add(event: discord.RawReactionActionEvent):
 
 @bot.event
 async def on_message_edit(_: discord.Message, new_message: discord.Message):
-    """Synchronizes posts between curation and curation gems"""
+    """Synchronizes posts between curation and curation gems."""
 
     logger.debug(
-        "Event 'on_message_edit' fired in %s guild. Channel is %s and target channel is %s.",
+        "Event 'on_message_edit' fired in %s guild on channel %s.",
         new_message.guild.id,
         new_message.channel.id,
-        TARGET_CHANNEL_ID,
     )
 
-    if new_message.channel.id != TARGET_CHANNEL_ID:
+    if new_message.channel.id not in TARGET_CHANNEL_IDS:
         return
 
     curation = get_curation_from_db(conn, new_message.id)
@@ -154,7 +155,7 @@ async def on_message_edit(_: discord.Message, new_message: discord.Message):
         curation_gems_channel, discord.TextChannel
     ):
         return logger.error(
-            "Did not find the curation gems text-channel with ID: %s",
+            "Could not find the curations text-channel with ID: %s",
             CURATIONS_CHANNEL_ID,
         )
 
@@ -163,23 +164,23 @@ async def on_message_edit(_: discord.Message, new_message: discord.Message):
 
     if not curated_message:
         return logger.warning(
-            "Did not find curated message with ID %s in curation gems channel",
+            "Could not find curated message with ID %s in curations channel",
             curated_message_id,
         )
 
-    permalink = construct_permalink(new_message, TARGET_CHANNEL_ID)
+    permalink = construct_permalink(new_message)
     embeds = create_curated_message_embeds(new_message, permalink)
     await curated_message.edit(embeds=embeds)
 
 
 async def start_bot():
-    """Starts the Discord bot"""
+    """Starts the Discord bot."""
 
     if not DISCORD_BOT_TOKEN:
         raise ValueError("DISCORD_BOT_TOKEN must be set!")
 
-    if not TARGET_CHANNEL_ID:
-        raise ValueError("TARGET_CHANNEL_ID must be set!")
+    if not TARGET_CHANNEL_IDS:
+        raise ValueError("TARGET_CHANNEL_IDS must be set!")
 
     if not CURATIONS_CHANNEL_ID:
         raise ValueError("CURATIONS_CHANNEL_ID must be set!")
@@ -188,7 +189,7 @@ async def start_bot():
 
 
 async def close_bot():
-    """Closes the Discord bots HTTP connection"""
+    """Closes the Discord bots HTTP connection."""
 
     await bot.http.close()
 
